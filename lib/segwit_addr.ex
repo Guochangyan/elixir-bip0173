@@ -39,7 +39,7 @@ defmodule SegwitAddr do
   """
   @spec encode(String.t, integer, list(integer)) :: String.t
   def encode(hrp, version, program) when is_list(program) do
-    Bech32.encode(hrp, [version] ++ convert_bits(program, 8, 5))
+    Bech32.encode(hrp, [version] ++ Bech32.convert_bits(program, 8, 5))
   end
 
   @spec encode(String.t, String.t) :: String.t
@@ -65,7 +65,7 @@ defmodule SegwitAddr do
     case Bech32.decode(addr) do
       {:ok, {hrp, data}} ->
         [version | encoded] = data
-        program = convert_bits(encoded, 5, 8, false)
+        program = Bech32.convert_bits(encoded, 5, 8, false)
         {:ok, {hrp, version, program}}
       error -> error
     end
@@ -88,45 +88,6 @@ defmodule SegwitAddr do
     ]
       |> :binary.list_to_bin()
       |> Base.encode16(case: :lower)
-  end
-
-  # General power-of-2 base conversion.
-  defp convert_bits(data, from, to, pad \\ true) do
-    max_v = (1 <<< to) - 1
-    if (Enum.find(data, fn (c) -> c < 0 || (c >>> from) != 0 end)) do
-      nil
-    else
-      {acc, bits, ret} = Enum.reduce(
-        data,
-        {0, 0, []},
-        fn (value, {acc, bits, ret}) ->
-          acc = ((acc <<< from) ||| value)
-          bits = bits + from
-          {bits, ret} = convert_bits_loop(to, max_v, acc, bits, ret)
-          {acc, bits, ret}
-        end
-      )
-      if (pad && bits > 0) do
-        ret ++ [(acc <<< (to - bits)) &&& max_v]
-      else
-        if (bits > from || ((acc <<< (to - bits)) &&& max_v) > 0) do
-          nil
-        else
-          ret
-        end
-      end
-    end
-  end
-
-  # Recursive version of the inner loop of the convert_bits function
-  defp convert_bits_loop(to, max_v, acc, bits, ret) do
-    if (bits >= to) do
-      bits = bits - to
-      ret = ret ++ [(acc >>> bits) &&& max_v]
-      convert_bits_loop(to, max_v, acc, bits, ret)
-    else
-      {bits, ret}
-    end
   end
 
 end
